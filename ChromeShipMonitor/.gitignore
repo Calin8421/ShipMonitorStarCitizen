@@ -1,0 +1,14 @@
+# Local dependencies and generated packages
+node_modules/
+coverage/
+dist/
+*.zip
+*.crx
+*.pem
+
+# Local editor and operating system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini

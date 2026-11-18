@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Star Citizen Ship Monitor",
+  "version": "1.1.0",
+  "description": "Monitor the current RSI ship page and prepare its checkout.",
+  "permissions": ["storage", "tabs", "scripting", "debugger"],
+  "host_permissions": ["https://robertsspaceindustries.com/*", "https://www.robertsspaceindustries.com/*"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_popup": "popup.html", "default_title": "Ship Monitor" },
+  "content_scripts": [{
+    "matches": ["https://robertsspaceindustries.com/*", "https://www.robertsspaceindustries.com/*"],
+    "js": ["content.js"], "run_at": "document_idle"
+  }]
+}

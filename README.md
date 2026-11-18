@@ -1,61 +1,58 @@
-# Star Citizen ship availability monitor
+# Star Citizen Ship Monitor
 
-This Windows application watches an RSI ship shop page for an actionable **Add
-to Cart** button. When it becomes available, the app attempts to add that ship to
-your cart, apply the maximum available store credit, and open checkout. You review
-and complete the order in the browser.
+A Chrome extension that monitors the RSI ship page open in your current tab.
+It uses your existing browser session and does not require a Java installation.
 
-## Use the application
+When the ship becomes available, the extension attempts to add one ship to an
+empty cart, verify the ship and its quantity, apply the maximum available store
+credit, and open checkout. You review the cart and complete the order yourself.
 
-1. Open `dist\ShipMonitor\ShipMonitor.exe`. Keep the entire `ShipMonitor`
-   folder together: it contains the app's private Java runtime.
-2. Enter a check interval in seconds and paste the RSI shop URL.
-3. Leave **Check sign-in before monitoring** selected and choose **Start
-   monitoring**. Sign in in the browser window if prompted. The app waits for
-   a recognizable signed-in account indicator before checking the ship, and
-   checks again before adding it to the cart. Select **Stop monitoring** to stop.
-   If the site changes and the app cannot recognize your sign-in, you can stop
-   it and clear the checkbox to monitor without that verification.
+## Install in Chrome
 
-The application attempts to show the image provided by the shop page. If the
-page does not provide a usable image, the monitor can still check availability.
-When the button becomes available, the app attempts to add the ship once,
-select MAX and ADD under Add store credits, then proceed to checkout. It stops
-monitoring there; it does not submit the order or payment. RSI warns that items obtained using store credit are non-giftable.
-The app follows the MAX and ADD controls before continuing, without relying on
-a particular confirmation message. If it cannot identify the next control,
-it reports that your attention is needed and leaves the browser open. No sound
-plays. The follow-up script has not yet been specified; see below.
+1. Download or clone this repository and extract it if necessary.
+2. Open `chrome://extensions` in Chrome and enable **Developer mode**.
+3. Click **Load unpacked** and select the `ChromeShipMonitor` folder inside the
+   repository. Select the folder containing `manifest.json`.
+4. Open Chrome's Extensions menu and pin **Star Citizen Ship Monitor** if you
+   want quick access to it.
 
-The app uses the default browser selected in Windows. It supports Chromium-based
-browsers such as Brave, Chrome, Edge, Vivaldi, and Opera; Firefox is not supported
-by this automation. The app opens a separate temporary browser profile, so your
-normal browser tabs and saved sign-in are not shared. The app automatically
-accepts all cookies through RSI’s recognized cookie banner. Sign in in that
-browser window if needed.
-Keep the app open while reviewing checkout; closing it or starting a new session
-closes the browser and removes the temporary profile. A page may still block automated checks; a blocked page,
-ambiguous control, or obstructed button is reported as **UNKNOWN**, not as
-available. Availability can change between checks, and a visible button does
-not guarantee that checkout will succeed.
+## Use
 
-## Run a follow-up command
+1. Sign in to RSI and make sure your cart is empty.
+2. Open the shop page for the ship you want to monitor.
+3. Open the extension, set the check interval in milliseconds, and click
+   **Start monitoring**. The default, `5000`, means five seconds.
+4. Keep the tab open. The extension reloads the ship page at the chosen
+   interval while checking availability.
+5. When checkout opens, review the ship, quantity, store credit, and total
+   before completing the order.
 
-Start the app from PowerShell with `--on-available` followed by the program
-and its arguments. For example, replace the program path with your own:
+Use **Stop monitoring** to stop the extension. The optional sign-in check waits
+for a recognizable account indicator; if it cannot recognize your signed-in
+session, stop monitoring and clear the checkbox before starting again.
 
-```powershell
-& .\dist\ShipMonitor\ShipMonitor.exe --on-available 'C:\path\to\your-program.exe'
+The extension stops for review if the cart is not empty before adding, if it
+cannot verify one matching ship with quantity one, or if it cannot identify a
+required cart control. Changes to RSI's website can affect the automation.
+
+## Permissions and privacy
+
+The extension requests access to RSI pages and uses Chrome's debugger
+permission to send browser-generated input events. Chrome may show a debugging
+notification while an action is being performed. Monitoring state is stored in
+Chrome's session storage and is cleared when Chrome closes or the extension is
+reloaded. The extension does not send information to a separate server.
+
+## Development
+
+The extension files are in [`ChromeShipMonitor`](ChromeShipMonitor/). To run the
+automated checks, install Node.js and run:
+
+```sh
+cd ChromeShipMonitor
+node tests/background.cjs
+node tests/content.cjs
 ```
 
-Everything after `--on-available` is passed as the command and its arguments;
-the app does not automatically supply the shop URL. The command runs once
-when availability is confirmed, not on an unavailable or unknown result.
-Its completion or failure is shown in the app. The specified
-program must be installed and accessible on the machine running the app.
-The final command can be configured when the other script's details are known.
-
-## Build and distribution
-
-See [BUILDING.md](BUILDING.md) for building the JAR, Windows launcher with
-bundled Java runtime, and optional installer.
+The automated checks use simulated browser and cart states. Verify the flow in
+a signed-in RSI cart before relying on it.

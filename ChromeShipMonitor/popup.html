@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="popup.css"><script src="popup.js" defer></script></head>
+<body><main>
+  <p class="eyebrow">STAR CITIZEN / SHIP MONITOR</p>
+  <h1>Watch your ship</h1>
+  <div class="ship"><img id="shipImage" alt="Selected ship"><span id="imagePlaceholder">Open a ship page to get started</span></div>
+  <p class="field-label">CURRENT SHIP</p><p id="shipName" class="ship-name">Open an RSI ship page</p>
+  <label class="field-label" for="interval">CHECK INTERVAL (MILLISECONDS)</label>
+  <input id="interval" type="number" min="1" max="86400000" value="5000" required>
+  <label class="checkbox"><input type="checkbox" id="signIn" checked> Check sign-in before monitoring</label>
+  <p class="hint">Uses this tab and your existing sign-in. Keep the tab open.</p>
+  <div class="footer"><div><p id="activity" class="inactive">● INACTIVE</p><strong id="status">Ready</strong><p id="detail" class="detail">Open the ship page you want to monitor.</p></div><button id="toggle">Start monitoring</button></div>
+</main></body></html>
