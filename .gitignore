@@ -1,6 +1,7 @@
 # Generated build and distribution files
 /build/
-/dist/
+/dist/*
+!/dist/ShipMonitor/
 *.class
 
 # IDE and editor settings
