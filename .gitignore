@@ -1,0 +1,13 @@
+# Generated build and distribution files
+/build/
+/dist/
+*.class
+
+# IDE and editor settings
+.idea/
+.vscode/
+*.iml
+
+# Windows metadata
+Thumbs.db
+Desktop.ini
