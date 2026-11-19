@@ -34,10 +34,27 @@
     const toolbar=document.querySelector('#platform-bar-cart-icon')?.parentElement;
     return !!toolbar && ([...toolbar.querySelectorAll('[class*=avatar i],[data-cy-id*=avatar i]')].some(visible) || [...toolbar.querySelectorAll('button[aria-label],[role=button][aria-label]')].filter(visible).some(e=>/^(my account|account menu|profile menu)$/i.test(e.getAttribute('aria-label')||'')));
   };
-  const creditRow = () => [...document.querySelectorAll('button[data-cy-id="__row"]')].filter(e=>visible(e)&&/^add store credits?$/i.test(norm(e.querySelector('[data-cy-id="__label"]')?.textContent)));
+  const creditRow = () => {
+    const rows=[...document.querySelectorAll('button[data-cy-id="__row"]')].filter(e=>visible(e)&&/^add store credits?$/i.test(norm(e.querySelector('[data-cy-id="__label"]')?.textContent)));
+    if(rows.length<=1) return rows;
+    const ready=rows.filter(e=>point(e));
+    return ready.length ? [ready[0]] : [];
+  };
+  const checkoutControl = () => {
+    const matches=e=>visible(e)&&/^(?:(?:proceed|continue|go) to )?checkout$/i.test(norm(e.innerText)||label(e));
+    const specific=[...document.querySelectorAll('button.c-cartAction__button[data-cy-id="__button"]')].filter(matches);
+    const candidates=specific.length?specific:controls().filter(matches);
+    return {button:candidates.find(e=>point(e))||null, found:candidates.length>0};
+  };
+  const orderResult = () => {
+    const messages=[...document.querySelectorAll('h1,h2,h3,[role="alert"],[role="status"]')].filter(visible).map(e=>norm(e.innerText||e.textContent));
+    if(messages.some(t=>/^(?:(?:your|the) )?(?:order|payment|pledge) (?:has )?(?:failed|was declined|was not completed|could not be completed)[.!]?$/i.test(t))) return 'error';
+    if(messages.some(t=>/^(?:(?:your|the) )?(?:order|pledge) (?:has been |is |was )?(?:confirmed|complete|completed|successfully placed)[.!]?$/i.test(t)||/^thank you for your (?:order|pledge|purchase)[.!]?$/i.test(t))) return 'confirmation';
+    return null;
+  };
   async function tick() {
     if(running) return; running=true;
-    let delay=1000, reschedule=false, state;
+    let delay=250, reschedule=false, state;
     try {
       const s=state=(await send({type:'get'}))?.state;
       if(!s?.active) return;
@@ -49,7 +66,7 @@
       if(s.stage==='monitor') {
         if(location.href!==s.url) { await report(s,'WAITING','Return to the selected ship page in this tab to resume monitoring.'); delay=2000; return; }
         const cookie=document.querySelector('#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll');
-        if(cookie&&visible(cookie)&&!cookie.disabled) { cookie.click(); delay=1500; return; }
+        if(cookie&&visible(cookie)&&!cookie.disabled) { cookie.click(); delay=750; return; }
         const image=document.querySelector('meta[property="og:image"]')?.content || '';
         if(s.checkSignIn&&!signedIn()) { await report(s,'WAITING FOR SIGN-IN','Sign in to RSI in this tab, then return to the selected ship page.',{image}); delay=2000; return; }
         const buttons=controls().filter(e=>visible(e)&&/\badd\s+to\s+cart\b/i.test(label(e)));
@@ -64,7 +81,7 @@
           const product=norm(match?match[1]:document.querySelector('h1')?.innerText||'');
           if(!product) { await finish(s,'Could not identify the selected ship.'); return; }
           await report(s,'AVAILABLE','Adding one ship to the cart.',{image,product});
-          await go(s,'add',buttons[0],'Adding one ship to the cart.',product); delay=2500; return;
+          await go(s,'add',buttons[0],'Adding one ship to the cart.',product); return;
         }
         await report(s,'MONITORING','Waiting for Add to Cart to become available.',{image});
         delay=s.interval;
@@ -73,18 +90,31 @@
         },delay);
         return;
       }
-      if(Date.now()-s.updated>90000) { await finish(s,'The shop did not complete the current step. Check the cart before retrying.'); return; }
+      if(Date.now()-s.updated>90000) { await finish(s,s.stage==='submitted'?'Could not confirm the order result. Check RSI order history before retrying.':'The shop did not complete the current step. Check the cart before retrying.'); return; }
       if(s.stage==='add') {
         if(cartPage()) { await send({type:'advance',id:s.id,expected:'add',next:'cart',noClick:true,detail:'Checking the cart.'}); return; }
         const icon=document.querySelector('#platform-bar-cart-icon');
         if(icon) await go(s,'cart',icon,'Checking the cart.');
         return;
       }
-      if(s.stage==='checkout') {
-        if(/\/checkout(?:\/|$)/i.test(location.pathname)||controls().some(e=>visible(e)&&/^(proceed to pay|continue to payment|add (a |an )?address)$/i.test(label(e)))) await report(s,'CHECKOUT','Checkout is open. Review and complete the order yourself.',{done:true});
+      if(s.stage==='submitted') {
+        const result=orderResult();
+        if(result==='error') await finish(s,'RSI displayed an order or payment error. Check the order before retrying.');
+        else if(result==='confirmation') await report(s,'ORDER CONFIRMATION DETECTED','RSI displayed an order confirmation. Check order history for payment and fulfillment.',{done:true});
+        else await report(s,'WAITING FOR ORDER RESULT','Final confirmation was attempted once; waiting for RSI.');
         return;
       }
-      if(!cartPage()) { await report(s,'ACTIVE','Waiting for the cart to open.'); return; }
+      if(s.stage==='checkout') {
+        if(!s.autoOrder&&!s.dryRun&&(/\/checkout(?:\/|$)/i.test(location.pathname)||controls().some(e=>visible(e)&&/^(proceed to pay|continue to payment|add (a |an )?address|place order)$/i.test(label(e))))) { await report(s,'CHECKOUT','Checkout is open. Review and complete the order yourself.',{done:true}); return; }
+      }
+      const orderPage=['checkout','order','terms'].includes(s.stage)&&/\/checkout(?:\/|$)/i.test(location.pathname);
+      if(!cartPage()&&!orderPage) {
+        if(s.stage==='cart'&&location.href===s.url&&Date.now()-s.updated>=750) {
+          const icon=document.querySelector('#platform-bar-cart-icon');
+          if(icon) await go(s,'cart',icon,'The cart is still closed; retrying.');
+        } else await report(s,'ACTIVE',s.stage==='checkout'?'Waiting for checkout to open.':'Waiting for the cart to open.');
+        return;
+      }
       const items=[...document.querySelectorAll('[data-cy-id="cart-items"] [data-cy-id="cart-line-item"]')].filter(visible);
       if(items.length===0) { await report(s,'ACTIVE','Waiting for the selected ship in the cart.'); return; }
       if(items.length!==1) { await finish(s,'The cart contains more than one item. Review it before continuing.'); return; }
@@ -95,6 +125,36 @@
       if(!q) return;
       const qty=Number(norm(q.textContent));
       if(qty!==1) { await finish(s,'The cart quantity is not one. Review the cart.'); return; }
+      if((s.autoOrder||s.dryRun)&&['checkout','order','terms'].includes(s.stage)) {
+        const totals=[...document.querySelectorAll('.c-cartAction__totalRow')].filter(visible);
+        if(!totals.length) { await report(s,'ACTIVE','Waiting to verify the order total.'); return; }
+        const amounts=totals.map(e=>norm(e.querySelector('[data-cy-id="price_unit__value"]')?.textContent).replace(/[^0-9.,-]/g,''));
+        if(amounts.some(a=>!/^0+(?:[.,]0{1,2})?$/.test(a))) { await finish(s,'The amount due is not verified as zero. Review and place the order yourself.'); return; }
+      }
+      if(s.stage==='order'||s.stage==='terms') {
+        const dialogs=[...document.querySelectorAll('dialog[data-cy-id="modal"][role="dialog"]')].filter(visible)
+          .filter(e=>/disclaimer/i.test(e.innerText||'')&&e.querySelector('input[data-cy-id="checkbox__input"][type="checkbox"]'));
+        if(dialogs.length>1) { await finish(s,'Multiple agreement dialogs found. Review the order yourself.'); return; }
+        if(!dialogs.length) { await report(s,'ACTIVE','Waiting for the order agreement dialog.'); return; }
+        const dialog=dialogs[0], checkbox=dialog.querySelector('input[data-cy-id="checkbox__input"][type="checkbox"]');
+        const checked=checkbox.checked||checkbox.getAttribute('aria-checked')==='true';
+        if(s.stage==='order') {
+          if(checked) await send({type:'advance',id:s.id,expected:'order',next:'terms',noClick:true,detail:'Agreement checkbox already selected.'});
+          else {
+            const target=checkbox.closest('label')?.querySelector('[data-cy-id="checkbox__display"]');
+            if(target) await go(s,'terms',target,'Selecting the agreement checkbox.');
+            else await report(s,'ACTIVE','Waiting for the agreement checkbox.');
+          }
+          return;
+        }
+        if(!checked) { await report(s,'ACTIVE','Waiting for the agreement checkbox to be selected.'); return; }
+        if(s.dryRun) { await report(s,'DRY RUN COMPLETE','Stopped before I agree. No final order confirmation was sent.',{done:true}); return; }
+        const buttons=[...dialog.querySelectorAll('button[data-cy-id="modal_footer__primary_button"]')].filter(e=>visible(e)&&/^i agree$/i.test(norm(e.innerText)));
+        if(buttons.length!==1) { await report(s,'ACTIVE','Waiting for the I agree button.'); return; }
+        if(point(buttons[0])) await go(s,'submitted',buttons[0],'Sending final order confirmation.');
+        else await report(s,'ACTIVE','Waiting for I agree to become clickable.');
+        return;
+      }
       if(s.stage==='cart') {
         const rows=creditRow(); if(rows.length>1) { await finish(s,'Multiple store credit sections found.'); return; }
         if(!rows.length) { await report(s,'ACTIVE','Looking for Add store credits. Confirm you are signed in.'); return; }
@@ -110,21 +170,47 @@
           if(!rows.length) { await report(s,'ACTIVE','Waiting for the store credit section.'); return; }
           const expanded=rows[0].getAttribute('aria-expanded');
           if(expanded==='false') {
-            if(Date.now()-s.updated>=2000) await go(s,'max',rows[0],'Opening store credits.');
+            if(Date.now()-s.updated>=750) await go(s,'max',rows[0],'Opening store credits.');
             return;
           }
           if(expanded!=='true') { await report(s,'ACTIVE','Waiting for store credits to open.'); return; }
         }
         const isMax=s.stage==='max', selector=isMax?'button[aria-label="apply max credit" i]':'button[aria-label="validate credit" i]';
         const buttons=[...document.querySelectorAll(selector)].filter(visible);
-        if(buttons.length>1) { await finish(s,'Multiple matching store credit buttons found.'); return; }
-        if(buttons.length===1) await go(s,isMax?'apply':'continue',buttons[0],isMax?'Selecting maximum store credit.':'Applying store credit.');
+        const button=buttons.find(e=>point(e));
+        if(button) await go(s,isMax?'apply':'continue',button,isMax?'Selecting maximum store credit.':'Applying store credit.');
+        else if(buttons.length) await report(s,'ACTIVE',isMax?'Waiting for the MAX button to become clickable.':'Waiting for the ADD button to become clickable.');
+        else if(!isMax&&Date.now()-s.updated>=750) {
+          const rows=creditRow();
+          const maxButtons=[...document.querySelectorAll('button[aria-label="apply max credit" i]')].filter(visible);
+          const maxButton=maxButtons.find(e=>point(e));
+          if(rows.length===1&&rows[0].getAttribute('aria-expanded')==='true'&&maxButton)
+            await go(s,'apply',maxButton,'MAX has not changed to ADD; retrying MAX.');
+        }
         return;
       }
       if(s.stage==='continue') {
-        const buttons=controls().filter(e=>visible(e)&&/^(?:(?:proceed|continue|go) to )?checkout$/i.test(label(e)));
-        if(buttons.length>1) { await finish(s,'Multiple checkout controls found.'); return; }
-        if(buttons.length===1) await go(s,'checkout',buttons[0],'Opening checkout.');
+        const checkout=checkoutControl();
+        if(checkout.button) await go(s,'checkout',checkout.button,'Opening checkout.');
+        else await report(s,'ACTIVE',checkout.found?'Waiting for Continue to checkout to become clickable.':'Looking for Continue to checkout.');
+        return;
+      }
+      if(s.stage==='checkout'&&(s.autoOrder||s.dryRun)) {
+        const buttons=controls().filter(e=>visible(e)&&/^place (?:the )?order$/i.test(norm(e.innerText)||label(e)));
+        if(buttons.length) {
+          // The cart and amount due were verified before this action.
+          const order=buttons.find(e=>point(e));
+          if(order) await go(s,'order',order,'Opening the order agreement.');
+          else await report(s,'ACTIVE','Waiting for Place order to become clickable.');
+          return;
+        }
+      }
+      if(s.stage==='checkout'&&Date.now()-s.updated>=750) {
+        const checkout=checkoutControl();
+        if(checkout.button) {
+          const button=checkout.button, busy=button.closest('[aria-busy="true"], [data-loading="true"]')||button.matches(':disabled')||button.getAttribute('aria-disabled')==='true';
+          if(!busy) await go(s,'checkout',button,'Checkout is still closed; retrying.');
+        } else await report(s,'ACTIVE',checkout.found?'Waiting for Continue to checkout to become clickable.':'Waiting for checkout to open.');
       }
     } catch(e) {
       if(state?.active) try { await finish(state,'Could not inspect the shop page. Check the cart before retrying.'); } catch {}

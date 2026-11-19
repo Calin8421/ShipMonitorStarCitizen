@@ -8,6 +8,10 @@
   <label class="field-label" for="interval">CHECK INTERVAL (MILLISECONDS)</label>
   <input id="interval" type="number" min="1" max="86400000" value="5000" required>
   <label class="checkbox"><input type="checkbox" id="signIn" checked> Check sign-in before monitoring</label>
+  <label class="checkbox"><input type="checkbox" id="autoOrder"> Automatically place the order and accept RSI's terms</label>
+  <label class="checkbox"><input type="checkbox" id="dryRun"> Dry run: stop before pressing I agree</label>
+  <p class="hint">Automatic ordering submits the pledge and accepts RSI's terms. It runs only when the amount due is verified as zero.</p>
   <p class="hint">Uses this tab and your existing sign-in. Keep the tab open.</p>
   <div class="footer"><div><p id="activity" class="inactive">● INACTIVE</p><strong id="status">Ready</strong><p id="detail" class="detail">Open the ship page you want to monitor.</p></div><button id="toggle">Start monitoring</button></div>
+  <details class="log"><summary>Activity log</summary><ol id="logEntries"></ol><p id="logEmpty" class="hint">No activity yet.</p></details>
 </main></body></html>

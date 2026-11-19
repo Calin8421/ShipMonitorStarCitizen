@@ -14,8 +14,19 @@ async function refresh() {
   $('toggle').textContent = active || other ? 'Stop monitoring' : 'Start monitoring';
   $('interval').disabled = active || other;
   $('signIn').disabled = active || other;
+  $('autoOrder').disabled = active || other;
+  $('dryRun').disabled = active || other;
   if (state?.interval) $('interval').value = state.interval;
   if (state?.checkSignIn != null) $('signIn').checked = state.checkSignIn;
+  if (state?.autoOrder != null) $('autoOrder').checked = state.autoOrder;
+  if (state?.dryRun != null) $('dryRun').checked = state.dryRun;
+  const entries=$('logEntries'); entries.replaceChildren();
+  for (const entry of state?.log || []) {
+    const item=document.createElement('li');
+    item.textContent=`${new Date(entry.time).toLocaleTimeString()} · ${entry.status}: ${entry.detail}`;
+    entries.appendChild(item);
+  }
+  $('logEmpty').hidden=!!state?.log?.length;
   $('shipName').textContent = active || other ? (state.product || state.title || 'Selected ship') : (selectedTab?.title || 'Open an RSI ship page');
   const image = state?.image;
   if (image && (active || other || state.tabId === selectedTab?.id)) {
@@ -29,7 +40,7 @@ $('toggle').addEventListener('click', async () => {
     else {
       const interval=Number($('interval').value);
       if (!Number.isInteger(interval)||interval<1||interval>86400000) throw new Error('Enter an interval from 1 to 86400000 milliseconds.');
-      const result=await call({type:'start',tabId:selectedTab?.id,interval,checkSignIn:$('signIn').checked});
+      const result=await call({type:'start',tabId:selectedTab?.id,interval,checkSignIn:$('signIn').checked,autoOrder:$('autoOrder').checked,dryRun:$('dryRun').checked});
       if (!result.ok) throw new Error(result.error);
     }
     await refresh();
